@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bot Envío Masivo EmailJS Seguro</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    margin: 0; padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+  }
+  #app {
+    background: #16213e;
+    width: 420px;
+    margin: 20px;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+    padding: 20px;
+  }
+  h1 {
+    margin: 0 0 20px 0;
+    font-weight: 700;
+    font-size: 1.5rem;
+    color: #00f5a0;
+    text-align: center;
+  }
+  label {
+    display: block;
+    margin-top: 12px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #a0f0c7;
+  }
+  input[type="text"],
+  input[type="file"],
+  textarea {
+    width: 100%;
+    padding: 10px 12px;
+    margin-top: 6px;
+    border-radius: 8px;
+    border: none;
+    background: #0f3460;
+    color: #c1f7d5;
+    font-size: 0.9rem;
+    box-shadow: inset 0 0 5px #0a1931;
+    resize: vertical;
+    font-family: monospace;
+  }
+  input[type="file"] {
+    padding: 6px 12px;
+  }
+  textarea {
+    min-height: 140px;
+  }
+  button {
+    margin-top: 18px;
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(90deg, #00f5a0, #008f94);
+    color: #0b1f2d;
+    font-weight: 700;
+    font-size: 1.1rem;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,245,160,0.7);
+    transition: background 0.3s ease;
+  }
+  button:hover:not(:disabled) {
+    background: linear-gradient(90deg, #008f94, #00f5a0);
+  }
+  button:disabled {
+    background: #3b3b5c;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  #emailsList {
+    margin-top: 15px;
+    background: #0b1f2d;
+    border-radius: 10px;
+    max-height: 130px;
+    overflow-y: auto;
+    padding: 12px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: #90ee90;
+    white-space: pre-wrap;
+    border: 1px solid #00f5a0;
+  }
+  #preview {
+    margin-top: 20px;
+    background: #0b1f2d;
+    padding: 15px;
+    border-radius: 12px;
+    border: 1px solid #00f5a0;
+    min-height: 100px;
+    overflow-y: auto;
+  }
+  #results {
+    margin-top: 20px;
+    max-height: 200px;
+    overflow-y: auto;
+    background: #122136;
+    color: #a3f7b5;
+    padding: 12px;
+    border-radius: 10px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    border: 1px solid #00f5a0;
+    white-space: pre-wrap;
+  }
+  fieldset {
+    border: 1px solid #00f5a0;
+    border-radius: 12px;
+    padding: 15px 20px 20px 20px;
+    margin-top: 25px;
+  }
+  legend {
+    padding: 0 10px;
+    font-weight: 700;
+    color: #00f5a0;
+    font-size: 1.1rem;
+  }
+</style>
+</head>
+<body>
+  <div id="app">
+    <h1>Bot Envío Masivo EmailJS Seguro</h1>
+
+    <fieldset>
+      <legend>Credenciales Mailgun</legend>
+      <label for="mailgunDomain">Dominio Mailgun</label>
+      <input type="text" id="mailgunDomain" placeholder="sandboxXXX.mailgun.org" autocomplete="off" />
+
+      <label for="mailgunApiKey">API Key</label>
+      <input type="text" id="mailgunApiKey" placeholder="key-XXXXXXXXXXXXXXXXXXXX" autocomplete="off" />
+    </fieldset>
+
+    <label for="emailFile">Carga archivo .txt con emails destinatarios (uno por línea)</label>
+    <input type="file" id="emailFile" accept=".txt" />
+
+    <button id="loadEmailsBtn">Cargar lista de emails</button>
+    <div id="emailsList">(ningún email cargado)</div>
+
+    <label for="htmlMessage">Mensaje HTML a enviar</label>
+    <textarea id="htmlMessage" placeholder="Escribe aquí el mensaje HTML..."></textarea>
+
+    <h2>Vista previa del mensaje</h2>
+    <div id="preview">(mensaje vacío)</div>
+
+    <button id="sendBtn" disabled>Enviar Emails</button>
+
+    <h2>Resultados del envío</h2>
+    <div id="results">(esperando acción)</div>
+  </div>
+
+<script>
+  let emails = [];
+
+  const loadEmailsBtn = document.getElementById('loadEmailsBtn');
+  const sendBtn = document.getElementById('sendBtn');
+  const emailFileInput = document.getElementById('emailFile');
+  const emailsListDiv = document.getElementById('emailsList');
+  const htmlMessageInput = document.getElementById('htmlMessage');
+  const previewDiv = document.getElementById('preview');
+  const resultsDiv = document.getElementById('results');
+
+  // Carga y procesa el archivo de emails
+  loadEmailsBtn.addEventListener('click', () => {
+    if (!emailFileInput.files.length) {
+      alert('Por favor selecciona un archivo .txt con emails.');
+      return;
+    }
+    const file = emailFileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = e => {
+      const text = e.target.result;
+      emails = text
+        .split(/\r?\n/)
+        .map(l => l.trim())
+        .filter(l => l.length > 0 && validateEmail(l));
+      if (emails.length === 0) {
+        alert('No se encontraron emails válidos en el archivo.');
+        emailsListDiv.textContent = '(ningún email válido)';
+        sendBtn.disabled = true;
+        return;
+      }
+      emailsListDiv.textContent = emails.join('\n');
+      sendBtn.disabled = false;
+      resultsDiv.textContent = '(esperando acción)';
+    };
+    reader.onerror = e => {
+      alert('Error al leer el archivo: ' + e.target.error.name);
+    };
+    reader.readAsText(file);
+  });
+
+  // Muestra vista previa del mensaje HTML
+  htmlMessageInput.addEventListener('input', () => {
+    const html = htmlMessageInput.value;
+    previewDiv.innerHTML = html || '(mensaje vacío)';
+  });
+
+  // Función para validar emails simples
+  function validateEmail(email) {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  }
+
+  // Envío masivo controlado usando Mailgun API
+  sendBtn.addEventListener('click', async () => {
+    const domain = document.getElementById('mailgunDomain').value.trim();
+    const apiKey = document.getElementById('mailgunApiKey').value.trim();
+    const messageHTML = htmlMessageInput.value.trim();
+
+    if (!domain || !apiKey) {
+      alert('Por favor completa las credenciales de Mailgun.');
+      return;
+    }
+    if (emails.length === 0) {
+      alert('No hay correos cargados para enviar.');
+      return;
+    }
+    if (!messageHTML) {
+      alert('El mensaje HTML está vacío.');
+      return;
+    }
+
+    if (!confirm(`¿Enviarás ${emails.length} emails?`)) {
+      return;
+    }
+
+    sendBtn.disabled = true;
+    loadEmailsBtn.disabled = true;
+    resultsDiv.textContent = 'Enviando emails...\n';
+
+    const summary = [];
+
+    // función para enviar email usando fetch a Mailgun API
+    async function enviarEmailMailgun(toEmail) {
+      const url = `https://api.mailgun.net/v3/${domain}/messages`;
+      const form = new FormData();
+      form.append('from', `Bot <postmaster@${domain}>`);
+      form.append('to', toEmail);
+      form.append('subject', 'Mensaje desde Bot');
+      form.append('html', messageHTML);
+
+      // Mailgun requiere autenticación básica con api:key
+      const headers = new Headers();
+      const token = btoa(`api:${apiKey}`);
+      headers.append('Authorization', `Basic ${token}`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: form,
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error ${response.status}: ${errorText}`);
+      }
+      return await response.json();
+    }
+
+    for (const recipient of emails) {
+      try {
+        await enviarEmailMailgun(recipient);
+        summary.push(`✔️ ${recipient} enviado`);
+      } catch (error) {
+        summary.push(`❌ ${recipient} - ${error.message}`);
+      }
+      resultsDiv.textContent = summary.join('\n');
+    }
+
+    resultsDiv.textContent += '\nProceso terminado.';
+    sendBtn.disabled = false;
+    loadEmailsBtn.disabled = false;
+  });
+</script>
+</body>
+</html>
