@@ -161,10 +161,6 @@
     <div id="results">(esperando acción)</div>
   </div>
 
-  <!-- Código de anuncio Adsterra -->
-  <script async="async" data-cfasync="false" src="//pl27248453.profitableratecpm.com/cf70628de2f6dbe62a8351001fe3884f/invoke.js"></script>
-  <div id="container-cf70628de2f6dbe62a8351001fe3884f"></div>
-
 <script>
   let emails = [];
 
@@ -218,9 +214,59 @@
     return re.test(email);
   }
 
-  // Aquí continúa tu código para enviar los emails
-  // (el resto del script original que tengas)
+  // Envío masivo controlado usando Mailgun API
+  sendBtn.addEventListener('click', async () => {
+    const domain = document.getElementById('mailgunDomain').value.trim();
+    const apiKey = document.getElementById('mailgunApiKey').value.trim();
+    const messageHTML = htmlMessageInput.value.trim();
 
-</script>
-</body>
-</html>
+    if (!domain || !apiKey) {
+      alert('Por favor completa las credenciales de Mailgun.');
+      return;
+    }
+    if (emails.length === 0) {
+      alert('No hay correos cargados para enviar.');
+      return;
+    }
+    if (!messageHTML) {
+      alert('El mensaje HTML está vacío.');
+      return;
+    }
+
+    if (!confirm(`¿Enviarás ${emails.length} emails?`)) {
+      return;
+    }
+
+    sendBtn.disabled = true;
+    loadEmailsBtn.disabled = true;
+    resultsDiv.textContent = 'Enviando emails...\n';
+
+    const summary = [];
+
+    // función para enviar email usando fetch a Mailgun API
+    async function enviarEmailMailgun(toEmail) {
+      const url = `https://api.mailgun.net/v3/${domain}/messages`;
+      const form = new FormData();
+      form.append('from', `Bot <postmaster@${domain}>`);
+      form.append('to', toEmail);
+      form.append('subject', 'Mensaje desde Bot');
+      form.append('html', messageHTML);
+
+      // Mailgun requiere autenticación básica con api:key
+      const headers = new Headers();
+      const token = btoa(`api:${apiKey}`);
+      headers.append('Authorization', `Basic ${token}`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: form,
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error ${response.status}: ${errorText}`);
+      }
+      return await response.json();
+    }
+
+    for (const recipient of email
